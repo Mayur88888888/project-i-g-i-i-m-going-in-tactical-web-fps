@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project I.G.I. - I'm Going In (Tactical Web FPS)</title>
+  <link rel="stylesheet" href="./style.css">
+  
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <!-- CRT Scanline Effect Overlay -->
+  <div class="crt-overlay"></div>
+
+  <!-- 3D Canvas Render Viewport -->
+  <div id="canvas-container"></div>
+
+  <!-- Red Screen Flash on Damage -->
+  <div id="damage-flash"></div>
+
+  <!-- Sniper Scope Reticle -->
+  <div id="sniper-scope">
+    <div class="scope-crosshair">
+      <div class="scope-line-h"></div>
+      <div class="scope-line-v"></div>
+    </div>
+  </div>
+
+  <!-- In-Game Tactical HUD Layer -->
+  <div id="ui-layer">
+    
+    <!-- FPS Crosshair -->
+    <div id="crosshair">
+      <div class="crosshair-line ch-top"></div>
+      <div class="crosshair-line ch-bottom"></div>
+      <div class="crosshair-line ch-left"></div>
+      <div class="crosshair-line ch-right"></div>
+      <div class="ch-dot"></div>
+    </div>
+
+    <!-- HUD Top Status Bar -->
+    <div class="hud-top-bar">
+      <!-- Compass / Heading Display -->
+      <div class="hud-panel">
+        <div class="hud-title">COMPASS HEADING</div>
+        <div class="hud-val" id="hud-compass">000° N</div>
+      </div>
+
+      <!-- Alarm / Security System Alert -->
+      <div class="hud-panel" id="alarm-panel" style="border-color: #555;">
+        <div class="hud-title">SECURITY STATUS</div>
+        <div class="hud-val" id="alarm-status-text" style="color: var(--igi-green);">NORMAL</div>
+      </div>
+
+      <!-- Radar Minimap -->
+      <div class="radar-box">
+        <div class="radar-sweep"></div>
+        <div class="radar-grid"></div>
+        <div id="radar-blips-container"></div>
+      </div>
+    </div>
+
+    <!-- Radio / Anya Briefing Subtitle Box -->
+    <div id="radio-subtitles">
+      <div class="radio-header">
+        <div class="radio-pulse"></div>
+        <span>ANYA (HQ COMM) - SECURE ENCRYPTED RADIO</span>
+      </div>
+      <div class="radio-body" id="radio-text">
+        Jones, you have landed in the mission zone. Stealth is imperative. Avoid triggering base alarms.
+      </div>
+    </div>
+
+    <!-- Interaction Prompt (e.g. "Press [F] to hack security terminal") -->
+    <div id="action-prompt">
+      PRESS <span style="color: var(--igi-green); font-weight: bold;">[F]</span> TO USE SECURITY TERMINAL
+    </div>
+
+    <!-- Weapon Selection Quick Dock -->
+    <div class="weapon-dock" id="weapon-dock">
+      <div class="weapon-slot-item" id="wslot-0"><span>[1] KNIFE</span><span>COMBAT BLADE</span></div>
+      <div class="weapon-slot-item active" id="wslot-1"><span>[2] PISTOL</span><span>L96 SD</span></div>
+      <div class="weapon-slot-item" id="wslot-2"><span>[3] SMG</span><span>MP5 SD</span></div>
+      <div class="weapon-slot-item" id="wslot-3"><span>[4] RIFLE</span><span>AK-47</span></div>
+      <div class="weapon-slot-item" id="wslot-4"><span>[5] SNIPER</span><span>SVD SNIPER</span></div>
+    </div>
+
+    <!-- HUD Bottom Status Bar -->
+    <div class="hud-bottom-bar">
+      <!-- Player Status Bars (Health, Armor, Noise/Visibility) -->
+      <div class="hud-panel stat-bars-group">
+        <div class="stat-bar-wrapper">
+          <span class="stat-label">HEALTH</span>
+          <div class="stat-bar-bg">
+            <div class="stat-bar-fill" id="bar-health" style="width: 100%;"></div>
+          </div>
+        </div>
+        <div class="stat-bar-wrapper">
+          <span class="stat-label">ARMOR</span>
+          <div class="stat-bar-bg">
+            <div class="stat-bar-fill armor" id="bar-armor" style="width: 100%;"></div>
+          </div>
+        </div>
+        <div class="stat-bar-wrapper">
+          <span class="stat-label">STEALTH</span>
+          <div class="stat-bar-bg">
+            <div class="stat-bar-fill visibility" id="bar-stealth" style="width: 20%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Weapon & Ammo Stats -->
+      <div class="hud-panel weapon-hud">
+        <div class="weapon-name" id="hud-weapon-name">L96 SUPPRESSED</div>
+        <div class="ammo-display">
+          <span id="hud-ammo-clip">12</span> / <span class="ammo-reserve" id="hud-ammo-reserve">48</span>
+        </div>
+        <div class="silencer-tag" id="hud-silencer-tag">SUPPRESSED (SILENT)</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Tactical Satellite PDA Map Overlay (Press 'M' or 'TAB') -->
+  <div id="tactical-pda" class="pointer-enabled">
+    <div class="pda-header">
+      <div style="display: flex; align-items: center; gap: 15px;">
+        <span style="font-family: var(--font-title); font-size: 18px; color: var(--igi-green);">SATELLITE GPS COMMUNICATIONS PDA</span>
+        <span style="color: #666;">|</span>
+        <span style="font-size: 12px; color: var(--igi-amber);" id="pda-coords">GPS: 48.85° N, 2.35° E</span>
+      </div>
+      <div>
+        <button class="btn-igi" id="btn-close-pda" style="padding: 6px 16px; font-size: 12px;">CLOSE [M / TAB]</button>
+      </div>
+    </div>
+    <div class="pda-body">
+      <canvas id="sat-map-canvas"></canvas>
+      <div class="pda-sidebar">
+        <div>
+          <div class="hud-title" style="margin-bottom: 8px;">MISSION OBJECTIVES</div>
+          <div id="pda-objectives-list">
+            <!-- Dynamic Objectives -->
+          </div>
+        </div>
+
+        <div>
+          <div class="hud-title" style="margin-bottom: 8px;">SATELLITE INTEL & CONTROLS</div>
+          <p style="font-size: 12px; color: #88aa88; line-height: 1.5; margin-bottom: 12px;">
+            Live satellite thermal scan feed synced with Agent Jones' suit radar. Real-time updates on base alarm grids and enemy guard patrols.
+          </p>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn-igi" id="btn-pda-nvg" style="flex: 1; font-size: 11px; padding: 8px;">NVG [N]</button>
+            <button class="btn-igi" id="btn-pda-thermal" style="flex: 1; font-size: 11px; padding: 8px;">THERMAL [V]</button>
+          </div>
+        </div>
+
+        <div>
+          <div class="hud-title" style="margin-bottom: 8px;">KEY COMBAT CONTROLS</div>
+          <div style="font-size: 11px; color: #a0c0a5; line-height: 1.8;">
+            <div><b style="color: var(--igi-green);">WASD</b>: Move | <b style="color: var(--igi-green);">SHIFT</b>: Sprint | <b style="color: var(--igi-green);">C</b>: Crouch</div>
+            <div><b style="color: var(--igi-green);">MOUSE LEFT</b>: Shoot | <b style="color: var(--igi-green);">RIGHT</b>: Aim / Scope</div>
+            <div><b style="color: var(--igi-green);">R</b>: Reload | <b style="color: var(--igi-green);">F</b>: Use/Hack | <b style="color: var(--igi-green);">1-5</b>: Weapons</div>
+            <div><b style="color: var(--igi-green);">N</b>: Night Vision | <b style="color: var(--igi-green);">V</b>: Thermal Sight</div>
+            <div><b style="color: var(--igi-green);">M / TAB</b>: Satellite PDA Map</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN MENU & MISSION SELECTOR -->
+  <div id="main-menu" class="full-screen-menu pointer-enabled">
+    <div class="menu-header">
+      <div>
+        <div class="game-title-logo">PROJECT I.G.I.</div>
+        <div class="game-title-sub">I'M GOING IN — WEB TACTICAL OPERATIVE</div>
+      </div>
+      <div style="display: flex; gap: 15px;">
+        <button class="btn-igi" id="btn-open-builder">CUSTOM MISSION CREATOR</button>
+        <button class="btn-igi" id="btn-open-scores">HIGH SCORES</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="hud-title" style="font-size: 14px; margin-bottom: 10px; color: var(--igi-green);">SELECT TACTICAL OPERATION:</div>
+      <div class="mission-grid" id="mission-grid">
+        <!-- Mission cards populated via JS -->
+      </div>
+    </div>
+
+    <!-- Briefing Details Box -->
+    <div class="hud-panel" style="margin-top: 15px; border-color: var(--igi-green); padding: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+        <div>
+          <span style="font-size: 11px; color: var(--igi-green); letter-spacing: 2px;">HQ INTEL BRIEFING BY ANYA</span>
+          <h3 id="brief-mission-title" style="font-family: var(--font-title); font-size: 22px; color: #fff; margin-top: 4px;">MISSION 1: TRAINYARD INFILTRATION</h3>
+        </div>
+        <button class="btn-igi" id="btn-start-mission" style="font-size: 18px; padding: 14px 40px; background: var(--igi-green); color: #000; font-weight: bold;">
+          I'M GOING IN [START]
+        </button>
+      </div>
+      <p id="brief-mission-desc" style="font-size: 15px; color: #c0dec4; line-height: 1.5; margin-bottom: 15px;">
+        Infiltrate the high-security military trainyard. Avoid alarm triggers, hack the security computer inside the main warehouse, neutralize perimeter guards, and escape via extraction point.
+      </p>
+      <div style="display: flex; gap: 30px; font-size: 13px; font-family: var(--font-mono); color: var(--igi-amber);">
+        <span>RECOMMENDED LOADOUT: <strong style="color: #fff;" id="brief-loadout">L96 SD, MP5 SD, SVD SNIPER</strong></span>
+        <span>SECURITY LEVEL: <strong style="color: #fff;" id="brief-security">CLASS III (CCTV & ALARMS)</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEBRIEFING / MISSION END MODAL -->
+  <div id="debrief-modal" class="pointer-enabled">
+    <div class="debrief-box">
+      <div class="debrief-title success" id="debrief-status-title">MISSION ACCOMPLISHED</div>
+      <p style="color: #a0c0a5; font-size: 14px;" id="debrief-status-sub">Agent David Jones successfully completed all primary objectives.</p>
+      
+      <div class="grade-badge" id="debrief-grade">GHOST</div>
+
+      <div class="debrief-stats-grid">
+        <div class="debrief-stat-row">
+          <span>FINAL TACTICAL SCORE</span>
+          <strong style="color: var(--igi-green);" id="debrief-score">14,800</strong>
+        </div>
+        <div class="debrief-stat-row">
+          <span>TIME ELAPSED</span>
+          <strong id="debrief-time">04:25</strong>
+        </div>
+        <div class="debrief-stat-row">
+          <span>HOSTILES ELIMINATED</span>
+          <strong id="debrief-kills">12</strong>
+        </div>
+        <div class="debrief-stat-row">
+          <span>STEALTH RATING</span>
+          <strong style="color: var(--igi-amber);" id="debrief-stealth-rating">100% SILENT</strong>
+        </div>
+        <div class="debrief-stat-row">
+          <span>BASE ALARMS TRIGGERED</span>
+          <strong id="debrief-alarms">0</strong>
+        </div>
+        <div class="debrief-stat-row">
+          <span>HEADSHOT ACCURACY</span>
+          <strong id="debrief-headshots">85%</strong>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 15px; justify-content: center; margin-top: 25px;">
+        <button class="btn-igi" id="btn-debrief-menu">RETURN TO HQ</button>
+        <button class="btn-igi" id="btn-debrief-retry" style="background: var(--igi-green); color: #000;">REPLAY MISSION</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CUSTOM MISSION CREATOR MODAL -->
+  <div id="builder-modal" class="pointer-enabled">
+    <div class="menu-header" style="margin-bottom: 20px;">
+      <div>
+        <div class="game-title-logo">IGI SANDBOX EDITOR</div>
+        <div class="game-title-sub">DESIGN CUSTOM TACTICAL OPERATIONS</div>
+      </div>
+      <button class="btn-igi" id="btn-close-builder">CANCEL / EXIT</button>
+    </div>
+
+    <div style="max-width: 800px; margin: 0 auto; width: 100%;">
+      <div class="form-group">
+        <label>OPERATION TITLE:</label>
+        <input type="text" id="custom-title" class="form-control" value="Operation Red Shield Infiltration">
+      </div>
+
+      <div class="form-group">
+        <label>OPERATION BRIEFING DESCRIPTION:</label>
+        <textarea id="custom-desc" class="form-control" rows="3">Infiltrate the northern outpost. Neutralize guard patrols silently, hack the computer terminal, and eliminate the target commanding officer.</textarea>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+        <div class="form-group">
+          <label>MAP ENVIRONMENT:</label>
+          <select id="custom-map-type" class="form-control">
+            <option value="trainyard">Military Trainyard</option>
+            <option value="airbase">Airbase & SAM Radar</option>
+            <option value="snow_outpost">Arctic Snow Outpost</option>
+            <option value="underground_silo">Underground Silo Complex</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>PATROL GUARD COUNT:</label>
+          <select id="custom-guard-count" class="form-control">
+            <option value="6">Low (6 Guards)</option>
+            <option value="12" selected>Medium (12 Guards)</option>
+            <option value="20">High (20 Guards - Extreme)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>SECURITY CAMERAS:</label>
+          <select id="custom-camera-count" class="form-control">
+            <option value="2">2 CCTV Cameras</option>
+            <option value="4" selected>4 CCTV Cameras</option>
+            <option value="8">8 CCTV Cameras</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>TIME OF DAY & ATMOSPHERE:</label>
+        <select id="custom-weather" class="form-control">
+          <option value="day">Daylight - Clear Visibility</option>
+          <option value="night" selected>Night Operations (Requires NVG / Suppressed)</option>
+          <option value="fog">Heavy Fog / Arctic Blizzard</option>
+        </select>
+      </div>
+
+      <div style="text-align: right; margin-top: 25px;">
+        <button class="btn-igi" id="btn-save-launch-custom" style="background: var(--igi-green); color: #000; font-size: 16px; padding: 12px 30px;">
+          DEPLOY CUSTOM OPERATION
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HIGH SCORES LEADERBOARD MODAL -->
+  <div id="scores-modal" class="full-screen-menu pointer-enabled" style="display: none;">
+    <div class="menu-header">
+      <div>
+        <div class="game-title-logo">IGI CLASSIFIED HIGH SCORES</div>
+        <div class="game-title-sub">GLOBAL TOP OPERATIVES ARCHIVE</div>
+      </div>
+      <button class="btn-igi" id="btn-close-scores">BACK TO HQ</button>
+    </div>
+
+    <div style="flex-grow: 1; overflow-y: auto; margin: 20px 0;">
+      <table class="scores-table">
+        <thead>
+          <tr>
+            <th>AGENT NAME</th>
+            <th>OPERATION</th>
+            <th>SCORE</th>
+            <th>TIME</th>
+            <th>ELIMINATIONS</th>
+            <th>STEALTH RATING</th>
+            <th>DATE</th>
+          </tr>
+        </thead>
+        <tbody id="scores-tbody">
+          <!-- Dynamically populated -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Main Game Engine Logic Script -->
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
